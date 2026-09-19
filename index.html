@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>動漫迷霧天賦樹 (Anime Talent Tree) - 存檔版</title>
+    <style>
+        /* [cite: 1] 樣式保持不變 */
+        body {
+            background-color: #11141e;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        h2 { margin-top: 0; }
+        #tree-container {
+            position: relative;
+            width: 100%;
+            height: 650px;
+            border: 2px solid #333;
+            background-color: #0d0f17;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        .node-btn {
+            position: absolute;
+            z-index: 2;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            transform: translate(-50%, -50%);
+            white-space: nowrap;
+        }
+        /* 起始點 (章魚嗶) 專用樣式 */
+        .node-start {
+            background: #fff0f3;
+            color: #222;
+            border: 3px solid #ff8fa3;
+            text-align: center;
+            padding: 8px 12px;
+            border-radius: 12px;
+        }
+        .node-start img {
+            width: 65px;
+            height: 65px;
+            display: block;
+            margin: 0 auto 4px auto;
+            border-radius: 12px;
+            object-fit: cover;
+        }
+        /* 樣式：未看完 (可點擊) */
+        .status-unlocked {
+            background: #00d2ff;
+            color: #fff;
+            border: 2px solid #0088cc;
+        }
+        .status-unlocked:hover {
+            background: #33e0ff;
+            box-shadow: 0 0 15px #00d2ff;
+        }
+        /* 樣式：已看完 (點亮) */
+        .status-watched {
+            background: #ffd700;
+            color: #000;
+            border: 2px solid #ffaa00;
+        }
+        .status-watched:hover {
+            background: #ffe44d;
+            box-shadow: 0 0 15px #ffd700;
+        }
+        /* 樣式：迷霧 (鎖定) */
+        .status-fog {
+            background: #252836;
+            color: #666;
+            border: 2px dashed #444;
+            cursor: not-allowed;
+        }
+        /* 資訊面板與稱號收藏 */
+        .info-panel {
+            margin-bottom: 15px;
+            padding: 15px 20px;
+            background-color: #1d2130;
+            border-radius: 8px;
+            border-left: 5px solid #ff8fa3;
+        }
+        .progress-text {
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+        #progress-count {
+            font-weight: bold;
+            color: #ffd700;
+            font-size: 1.2em;
+        }
+        .achievement-box {
+            background-color: #0d0f17;
+            padding: 12px 15px;
+            border-radius: 6px;
+            border: 1px solid #333;
+            margin-top: 10px;
+        }
+        .title-label {
+            color: #aaa;
+            font-size: 14px;
+            display: block;
+            margin-bottom: 8px;
+        }
+        /* 稱號收藏容器 */
+        #title-collection {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            min-height: 30px;
+        }
+        /* 單個稱號標籤的樣式 */
+        .title-badge {
+            background-color: #2a2a3a;
+            color: #ddd;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            border: 1px solid #444;
+            transition: all 0.3s;
+        }
+        /* 特定成就（折磨受害者）的專用樣式 */
+        .title-special {
+            background-color: #4a1a1a;
+            color: #ffcccc;
+            border-color: #cc0000;
+            box-shadow: 0 0 5px rgba(204, 0, 0, 0.3);
+        }
+        /* 新稱號解鎖時的閃爍動畫 */
+        @keyframes titleHighlight {
+            0% { transform: scale(1); box-shadow: 0 0 0px #ffd700; }
+            50% { transform: scale(1.1); box-shadow: 0 0 15px #ffd700; }
+            100% { transform: scale(1); box-shadow: 0 0 0px #ffd700; }
+        }
+        .title-badge-new {
+            animation: titleHighlight 1.5s ease-in-out;
+        }
+
+        /* 儲存按鈕樣式 */
+        .save-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .btn-control {
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            border: none;
+            transition: opacity 0.3s;
+        }
+        .btn-control:hover { opacity: 0.8; }
+        #btn-reset {
+            background-color: #cc0000;
+            color: white;
+        }
+        #btn-manual-save {
+            background-color: #33374b;
+            color: #ddd;
+            display: none; /* 如果要顯示手動儲存按鈕請改為 block */
+        }
+    </style>
+</head>
+<body>
+
+    <h2>🌟 動漫迷霧天賦樹 (Anime Talent Tree)</h2>
+    
+    <div class="info-panel">
+        <div class="progress-text">
+            💡 玩法：點擊藍色節點標記「已看完」。再點金黃色可退回。<br>
+            目前點亮神作：<span id="progress-count">0</span> / 6
+        </div>
+        <div class="achievement-box">
+            <span class="title-label">稱號收藏 (Achievement Titles):</span>
+            <div id="title-collection">
+                <span id="default-title" class="title-badge">【動漫小白】</span>
+            </div>
+        </div>
+        <div class="save-controls">
+            <button id="btn-manual-save" class="btn-control">手動儲存</button>
+            <button id="btn-reset" class="btn-control">【重置所有紀錄】</button>
+        </div>
+    </div>
+
+    <div id="tree-container">
+        <canvas id="line-canvas"></canvas>
+    </div>
+
+    <script>
+        // ---------------------------------------------------------
+        // [cite: 1] 核心設定：動畫節點與成就收藏系統
+        // ---------------------------------------------------------
+
+        // [cite: 1] 章魚嗶圖片與檔名 (請確保 takopi.gif 與此檔案在同一個資料夾)
+        const TAKOPI_IMG_SRC = 'takopi.gif'; 
+
+        // [cite: 1] 1. 定義可獲得的稱號 (並存收藏版)
+        const ACHIEVEMENT_TITLES_DB = [
+            { id: 'novice', name: '【初階者】', condition: (watchedIds) => watchedIds.length >= 3 },
+            { id: 'apprentice', name: '【見習冒險者】', condition: (watchedIds) => watchedIds.length >= 6 },
+            // 特定组合成就 (ID 4=小圓, 5=命運石, 6=魯路修)
+            { id: 'victim', name: '【虛淵玄與志倉的折磨受害者】', condition: (watchedIds) => watchedIds.includes(4) && watchedIds.includes(5) && watchedIds.includes(6), style: 'title-special' }
+        ];
+
+        // 2. 定義天賦樹節點 (初始狀態為純迷霧版)
+        const INITIAL_NODES = [
+            // 起始核心 (ID 0)
+            { id: 0, title: '動漫小白', status: 'start', x: 50, y: 50, img: TAKOPI_IMG_SRC },
+            
+            // 左側分支：淚腺崩壞系
+            { id: 1, title: '未聞花名', status: 'unlocked', x: 30, y: 50, parent: 0, tag: '【感人】' },
+            { id: 2, title: 'CLANNAD', status: 'fog', x: 12, y: 30, parent: 1, tag: '【人生】' },
+            { id: 3, title: '四月是你的謊言', status: 'fog', x: 12, y: 70, parent: 1, tag: '【音樂】' },
+            
+            // 右側分支：燒腦與戰鬥系
+            { id: 4, title: '魔法少女小圓', status: 'unlocked', x: 70, y: 50, parent: 0, tag: '【戰鬥】' },
+            { id: 5, title: '命運石之門', status: 'fog', x: 88, y: 30, parent: 4, tag: '【科幻懸疑】' },
+            { id: 6, title: 'Code Geass 魯路修', status: 'fog', x: 88, y: 70, parent: 4, tag: '【機器人】' }
+        ];
+
+        // 深拷貝 INITIAL_NODES 給實際執行的 nodes
+        let nodes = JSON.parse(JSON.stringify(INITIAL_NODES));
+
+        // 3. 連線結構
+        const edges = [
+            { from: 0, to: 1, tag: '【感人】' },
+            { from: 1, to: 2, tag: '【人生】' },
+            { from: 1, to: 3, tag: '【音樂】' },
+            { from: 0, to: 4, tag: '【戰鬥】' },
+            { from: 4, to: 5, tag: '【科幻懸疑】' },
+            { from: 4, to: 6, tag: '【機器人】' }
+        ];
+
+        // ---------------------------------------------------------
+        // 初始化與渲染邏輯 (HTML5 Canvas + DOM 結構)
+        // ---------------------------------------------------------
+        const container = document.getElementById('tree-container');
+        const canvas = document.getElementById('line-canvas');
+        const ctx = canvas.getContext('2d');
+        let currentWatchedIds = []; // 紀錄目前看完的 ID 陣列，判斷成就用
+        let activeCollectionTitles = new Set(); // 紀錄目前已收集的稱號 ID，防止閃爍
+
+        function resizeCanvas() {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            drawLines();
+        }
+
+        // 創建節點按鈕
+        function createNodeButtons() {
+            // 先清除所有現有節點
+            const existingNodes = container.querySelectorAll('.node-btn');
+            existingNodes.forEach(n => n.remove());
+
+            nodes.forEach(node => {
+                const btn = document.createElement('div');
+                btn.id = `node-${node.id}`;
+                btn.style.left = `${node.x}%`;
+                btn.style.top = `${node.y}%`;
+
+                if (node.status === 'start') {
+                    btn.className = 'node-btn node-start';
+                    btn.innerHTML = `<img src="${node.img}" onerror="this.src='https://via.placeholder.com/65?text=章魚嗶'" alt="章魚嗶"/>${node.title}`;
+                } else {
+                    btn.className = `node-btn status-${node.status}`;
+                    btn.innerText = getNodeLabel(node);
+                    btn.addEventListener('click', () => handleNodeClick(node));
+                }
+
+                container.appendChild(btn);
+            });
+        }
+
+        function getNodeLabel(node) {
+            if (node.status === 'watched') return `★ ${node.title}`;
+            if (node.status === 'unlocked') return node.title;
+            return '??? (迷霧鎖定)';
+        }
+
+        // 繪製連線與【分類標籤】
+        function drawLines() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            edges.forEach(edge => {
+                const startNode = nodes.find(n => n.id === edge.from);
+                const endNode = nodes.find(n => n.id === edge.to);
+
+                const startX = (startNode.x / 100) * canvas.width;
+                const startY = (startNode.y / 100) * canvas.height;
+                const endX = (endNode.x / 100) * canvas.width;
+                const endY = (endNode.y / 100) * canvas.height;
+
+                const isLineActive = (startNode.status === 'watched' || startNode.status === 'start') && endNode.status !== 'fog';
+
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+                ctx.lineTo(endX, endY);
+                ctx.strokeStyle = isLineActive ? '#00d2ff' : '#33374b';
+                ctx.lineWidth = isLineActive ? 3 : 2;
+                ctx.stroke();
+
+                if (edge.tag) {
+                    const midX = (startX + endX) / 2;
+                    const midY = (startY + endY) / 2;
+                    ctx.font = 'bold 15px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillStyle = '#000000';
+                    ctx.fillText(edge.tag, midX + 1, midY + 1);
+                    ctx.fillStyle = isLineActive ? '#ffffff' : '#555566';
+                    ctx.fillText(edge.tag, midX, midY);
+                }
+            });
+        }
+
+        // ---------------------------------------------------------
+        // [cite: 1] 互動邏輯、迷霧、成就收藏 
+        // ---------------------------------------------------------
+        function handleNodeClick(node) {
+            if (node.status === 'unlocked') {
+                node.status = 'watched';
+                nodes.filter(n => n.parent === node.id).forEach(child => {
+                    if (child.status === 'fog') child.status = 'unlocked';
+                });
+            } else if (node.status === 'watched') {
+                const hasWatchedChildren = nodes.some(n => n.parent === node.id && n.status === 'watched');
+                if (hasWatchedChildren) {
+                    alert('請先取消後面已點亮的分支，才能取消此天賦點！');
+                    return;
+                }
+                node.status = 'unlocked';
+                nodes.filter(n => n.parent === node.id).forEach(child => {
+                    child.status = 'fog';
+                });
+            }
+            updateTreeUI();
+        }
+
+        function updateTreeUI() {
+            nodes.forEach(node => {
+                if (node.status !== 'start') {
+                    const btn = document.getElementById(`node-${node.id}`);
+                    btn.className = `node-btn status-${node.status}`;
+                    btn.innerText = getNodeLabel(node);
+                }
+            });
+
+            drawLines();
+
+            const watchedNodes = nodes.filter(n => n.status === 'watched');
+            const watchedCount = watchedNodes.length;
+            document.getElementById('progress-count').innerText = watchedCount;
+
+            updateAchievementCollection(watchedNodes);
+
+            // 核心修改：每次操作自動儲存
+            saveGame();
+        }
+
+        // 成就與稱號檢查邏輯 (並存收集模式)
+        function updateAchievementCollection(watchedNodes) {
+            currentWatchedIds = watchedNodes.map(n => n.id);
+            const collectionContainer = document.getElementById('title-collection');
+            const defaultTitle = document.getElementById('default-title');
+
+            const unlockedAchievements = ACHIEVEMENT_TITLES_DB.filter(ach => ach.condition(currentWatchedIds));
+
+            if (unlockedAchievements.length === 0) {
+                if (!defaultTitle) {
+                    const小白Label = document.createElement('span');
+                    小白Label.id = 'default-title';
+                    小白Label.className = 'title-badge';
+                    小白Label.innerText = '【動漫小白】';
+                    collectionContainer.appendChild(小白Label);
+                }
+            } else {
+                if (defaultTitle) {
+                    collectionContainer.removeChild(defaultTitle);
+                }
+
+                unlockedAchievements.forEach(ach => {
+                    const achElementId = `title-${ach.id}`;
+                    let achElement = document.getElementById(achElementId);
+
+                    if (!achElement) {
+                        achElement = document.createElement('span');
+                        achElement.id = achElementId;
+                        achElement.className = `title-badge ${ach.style || ''}`;
+                        achElement.innerText = ach.name;
+                        
+                        collectionContainer.appendChild(achElement);
+
+                        // 如果此稱號是這次操作新解鎖的 (不在 Set 裡)，加入動畫
+                        if (!activeCollectionTitles.has(ach.id)) {
+                            achElement.classList.add('title-badge-new');
+                            setTimeout(() => {
+                                if (document.getElementById(achElementId)) {
+                                    achElement.classList.remove('title-badge-new');
+                                }
+                            }, 1500);
+                        }
+                    }
+                });
+
+                const activeBadges = collectionContainer.querySelectorAll('.title-badge');
+                activeBadges.forEach(badge => {
+                    if (badge.id === 'default-title') return;
+                    
+                    const badgeTitleId = badge.id.replace('title-', '');
+                    if (!unlockedAchievements.some(ach => ach.id === badgeTitleId)) {
+                        collectionContainer.removeChild(badge);
+                    }
+                });
+            }
+            
+            activeCollectionTitles = new Set(unlockedAchievements.map(ach => ach.id));
+        }
+
+        // ---------------------------------------------------------
+        // 核心功能：存檔、讀檔與重置
+        // ---------------------------------------------------------
+        
+        const SAVE_KEY = 'anime_talent_tree_save';
+
+        // 1. 手動存檔（如果您啟用手動按鈕）
+        document.getElementById('btn-manual-save').addEventListener('click', saveGame);
+
+        // 2. 重置按鈕
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            if (confirm('確定要清除所有紀錄並重置嗎？稱號與點數將全部消失。')) {
+                localStorage.removeItem(SAVE_KEY); // 清除 LocalStorage
+                // 重置 nodes 到 INITIAL_NODES
+                nodes = JSON.parse(JSON.stringify(INITIAL_NODES));
+                activeCollectionTitles.clear(); // 清空稱號 ID 快取
+                updateTreeUI(); // 重繪介面
+            }
+        });
+
+        // 核心函數：儲存遊戲
+        function saveGame() {
+            // 將 nodes 陣列序列化為 JSON 字串並存入 localStorage
+            const saveData = JSON.stringify(nodes);
+            localStorage.setItem(SAVE_KEY, saveData);
+            console.log('Game Saved Automaticly.');
+        }
+
+        // 核心函數：讀取遊戲
+        function loadGame() {
+            // 從 localStorage 取得 JSON 字串
+            const saveData = localStorage.getItem(SAVE_KEY);
+            
+            if (saveData) {
+                try {
+                    // 解析 JSON 字串回 nodes 陣列
+                    nodes = JSON.parse(saveData);
+                    console.log('Save Data Loaded.');
+                } catch (e) {
+                    // 如果存檔損壞，使用初始狀態
+                    console.error('Save data corrupted, using initial nodes.');
+                    nodes = JSON.parse(JSON.stringify(INITIAL_NODES));
+                }
+            } else {
+                console.log('No save data found, starting fresh.');
+                nodes = JSON.parse(JSON.stringify(INITIAL_NODES));
+            }
+        }
+
+        // ---------------------------------------------------------
+        // 初始化載入
+        // ---------------------------------------------------------
+        window.addEventListener('resize', resizeCanvas);
+        
+        // 修改：先讀取存檔，再創建節點
+        loadGame();
+        createNodeButtons();
+        // 讀檔後觸发一次介面更新，同步看完計數與稱號收集面板
+        updateTreeUI();
+
+        setTimeout(resizeCanvas, 150);
+    </script>
+</body>
+</html>
